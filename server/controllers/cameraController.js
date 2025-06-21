@@ -17,7 +17,6 @@ export const addCamera = (req, res) => {
       return res.status(400).json({ error: 'Name and IP address are required' });
     }
 
-    // Validate IP format
     const ipRegex = /^http:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:8080$/;
     if (!ipRegex.test(ipAddress)) {
       return res.status(400).json({ error: 'Invalid IP format. Use http://192.168.x.x:8080' });
@@ -73,7 +72,9 @@ export const getCameraStatus = (req, res) => {
 export const resolveAlert = (req, res) => {
   try {
     const { id } = req.params;
-    const success = resolveAlertService(id);
+    const { remark } = req.body; // <-- NEW
+
+    const success = resolveAlertService(id, remark); // pass remark to service
     
     if (!success) {
       return res.status(404).json({ error: 'Alert not found' });

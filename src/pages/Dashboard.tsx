@@ -4,8 +4,15 @@ import CameraGrid from '../components/CameraGrid';
 import AddCameraModal from '../components/AddCameraModal';
 import { Plus } from 'lucide-react';
 
+interface CameraData {
+  name: string;
+  ipAddress: string;
+  streamUrl?: string;  // optional now
+}
+
+
 const Dashboard = () => {
-  const [cameras, setCameras] = useState([]);
+  const [cameras, setCameras] = useState<any[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +27,9 @@ const Dashboard = () => {
       setCameras(data.cameras);
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect(); // no return here
+    };
   }, []);
 
   const fetchCameras = async () => {
@@ -35,7 +44,7 @@ const Dashboard = () => {
     }
   };
 
-  const addCamera = async (cameraData) => {
+  const addCamera = async (cameraData: CameraData) => {
     try {
       const response = await fetch('http://localhost:3001/api/cameras', {
         method: 'POST',
@@ -58,7 +67,7 @@ const Dashboard = () => {
     }
   };
 
-  const deleteCamera = async (cameraId) => {
+  const deleteCamera = async (cameraId: string) => {
     if (!confirm('Are you sure you want to delete this camera?')) return;
 
     try {
@@ -116,3 +125,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+

@@ -1,51 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import StatusCard from '../components/StatusCard';
 import AlertsPanel from '../components/AlertsPanel';
 import { Camera, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { Alert } from '../types'; // ✅ use shared Alert type
+
+// ✅ Only keep this
+interface Stats {
+  total: number;
+  online: number;
+  offline: number;
+  activeAlerts: number;
+}
 
 const Home = () => {
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     total: 0,
     online: 0,
     offline: 0,
     activeAlerts: 0
   });
-  const [alerts, setAlerts] = useState([]);
-  const [lastUpdate, setLastUpdate] = useState(null);
+
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   useEffect(() => {
-    const socket = io('http://localhost:3001');
+    const socket: Socket = io('http://localhost:3001');
 
-    // Fetch initial camera status
     fetch('http://localhost:3001/api/cameras/status')
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(err => console.error('Failed to fetch camera status:', err));
 
-    // Fetch initial alerts
     fetchAlerts();
 
-    // Listen for real-time updates
     socket.on('cameraStatusUpdate', (data) => {
       setStats(data.stats);
       setLastUpdate(new Date().toLocaleTimeString());
     });
 
-    socket.on('newAlert', (alert) => {
-      setAlerts(prev => [alert, ...prev.slice(0, 9)]); // Keep last 10 alerts
-      // Optional: Play alert sound
-      // new Audio('/alert-sound.mp3').play().catch(() => {});
+    socket.on('newAlert', (alert: Alert) => {
+      setAlerts((prev) => [alert, ...prev.slice(0, 9)]);
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const fetchAlerts = async () => {
     try {
       const response = await fetch('http://localhost:3001/api/cameras/alerts');
       if (response.ok) {
-        const alertsData = await response.json();
+        const alertsData: Alert[] = await response.json();
         setAlerts(alertsData);
       }
     } catch (error) {
@@ -62,7 +69,7 @@ const Home = () => {
       description: 'Configured cameras'
     },
     {
-      title: 'Online Cameras', 
+      title: 'Online Cameras',
       value: stats.online,
       icon: Wifi,
       color: 'bg-green-600',
@@ -70,7 +77,7 @@ const Home = () => {
     },
     {
       title: 'Offline Cameras',
-      value: stats.offline, 
+      value: stats.offline,
       icon: WifiOff,
       color: 'bg-red-600',
       description: 'Connection issues'
@@ -93,21 +100,19 @@ const Home = () => {
         </p>
       </div>
 
-      {/* Status Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statusCards.map((card, index) => (
           <StatusCard key={index} {...card} />
         ))}
       </div>
 
-      {/* Alerts Panel */}
-      <AlertsPanel alerts={alerts} />
+      {/* ✅ Pass setAlerts to AlertsPanel */}
+      <AlertsPanel alerts={alerts} setAlerts={setAlerts} />
 
-      {/* Auto-refresh indicator */}
       <div className="mt-8 text-center">
         <div className="inline-flex items-center space-x-2 text-sm text-gray-500">
           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span>Auto-refreshing every 8 seconds</span>
+          <span>Auto-refreshing every 3 seconds</span>
         </div>
       </div>
     </div>

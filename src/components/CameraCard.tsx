@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
-import { Wifi, WifiOff, Trash2, Eye, AlertTriangle, Clock } from 'lucide-react';
-
-interface Camera {
-  id: string;
-  name: string;
-  ipAddress: string;
-  streamUrl: string;
-  status: string;
-  addedAt: string;
-  lastChecked: string | null;
-}
+import { Wifi, WifiOff, Trash2, Eye, Clock } from 'lucide-react';
+import type { Camera } from '../types';  // import shared Camera interface
 
 interface CameraCardProps {
   camera: Camera;
@@ -18,7 +9,7 @@ interface CameraCardProps {
 
 const CameraCard: React.FC<CameraCardProps> = ({ camera, onDelete }) => {
   const [imageError, setImageError] = useState(false);
-  
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'online':
@@ -41,13 +32,13 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onDelete }) => {
             <h3 className="text-lg font-semibold text-white">{camera.name}</h3>
             <p className="text-sm text-gray-400">{camera.ipAddress}</p>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <div className={`flex items-center space-x-1 px-2 py-1 rounded ${getStatusColor(camera.status)}`}>
               <StatusIcon className="w-3 h-3" />
               <span className="text-xs font-medium capitalize">{camera.status}</span>
             </div>
-            
+
             <button
               onClick={onDelete}
               className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -61,7 +52,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onDelete }) => {
 
       {/* Camera Feed */}
       <div className="relative bg-gray-900 h-48">
-        {camera.status === 'online' && !imageError ? (
+        {camera.status === 'online' && !imageError && camera.streamUrl ? (
           <img
             src={camera.streamUrl}
             alt={`${camera.name} feed`}
@@ -90,7 +81,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onDelete }) => {
         )}
 
         {/* Live indicator */}
-        {camera.status === 'online' && !imageError && (
+        {camera.status === 'online' && !imageError && camera.streamUrl && (
           <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span>LIVE</span>
@@ -104,13 +95,12 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera, onDelete }) => {
           <div className="flex items-center space-x-1">
             <Clock className="w-3 h-3" />
             <span>
-              {camera.lastChecked 
+              {camera.lastChecked
                 ? `Last checked: ${new Date(camera.lastChecked).toLocaleTimeString()}`
-                : 'Never checked'
-              }
+                : 'Never checked'}
             </span>
           </div>
-          
+
           <span className="text-xs">
             Added {new Date(camera.addedAt).toLocaleDateString()}
           </span>
