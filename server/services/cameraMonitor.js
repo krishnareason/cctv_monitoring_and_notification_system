@@ -1,21 +1,14 @@
 import { sendNotifications } from './notificationService.js';
+import db from '../db.js';
+import { v4 as uuidv4 } from 'uuid';
 
-let cameras = [];
-let alerts = [];
-let cameraStats = {
-  total: 0,
-  online: 0,
-  offline: 0,
-  activeAlerts: 0
-};
-
-let ioInstance = null; // 🔁 store reference to socket
+let ioInstance = null;
 
 const checkCameraConnection = async (camera) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(camera.streamUrl, {
+    const response = await fetch(camera.stream_url, {
       method: 'HEAD',
       signal: controller.signal,
       headers: {
@@ -54,86 +47,110 @@ const analyzeCamera = async (camera) => {
 };
 
 const generateAlert = async (camera, issue, details) => {
-  const existingAlert = alerts.find(a =>
-    a.cameraId === camera.id &&
-    a.type === issue &&
-    !a.resolved
+  const [existing] = await db.execute(
+    `SELECT * FROM alerts WHERE camera_id = ? AND type = ? AND resolved = FALSE`,
+    [camera.id, issue]
   );
 
-  if (existingAlert) return null;
+  if (existing.length > 0) return null;
 
-  const alert = {
-    id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    cameraId: camera.id,
-    cameraName: camera.name,
-    type: issue,
-    message: details || `Camera ${camera.name} has ${issue} issue`,
-    timestamp: new Date().toISOString(),
-    resolved: false,
-    resolvedAt: null,
-    remark: null
-  };
+  const alertId = uuidv4();
+  const timestamp = new Date();
 
-  alerts.push(alert);
+  await db.execute(
+    `INSERT INTO alerts (id, camera_id, type, message, timestamp, resolved) VALUES (?, ?, ?, ?, ?, FALSE)`,
+    [alertId, camera.id, issue, details, timestamp]
+  );
 
   if (issue === 'offline') {
-    console.log(`🚨 Sending notifications for offline camera: ${camera.name}`);
     try {
-      const notificationResult = await sendNotifications(camera, issue, details);
-      console.log(`📬 Notification result:`, notificationResult);
+      await sendNotifications(camera, issue, details);
+      console.log(`📬 Notification sent for offline camera: ${camera.name}`);
     } catch (error) {
-      console.error('📬 Failed to send notifications:', error);
+      console.error('📬 Notification failed:', error);
     }
   }
 
-  return alert;
+  return {
+    id: alertId,
+    cameraId: camera.id,
+    type: issue,
+    message: details,
+    timestamp,
+    resolved: false
+  };
 };
 
-const updateCameraStats = () => {
-  cameraStats.total = cameras.length;
-  cameraStats.online = cameras.filter(c => c.status === 'online').length;
-  cameraStats.offline = cameras.filter(c => c.status === 'offline').length;
-  cameraStats.activeAlerts = alerts.filter(a => !a.resolved).length;
+const updateCameraStatus = async (id, status) => {
+  await db.execute(`UPDATE cameras SET status = ?, last_checked = ? WHERE id = ?`, [
+    status,
+    new Date(),
+    id
+  ]);
+};
+
+// ✅ ADDED THIS FUNCTION TO FIX THE ERROR
+export const updateCameraData = async (id, updateData) => {
+  const fields = [];
+  const values = [];
+
+  for (const [key, value] of Object.entries(updateData)) {
+    fields.push(`${key} = ?`);
+    values.push(value);
+  }
+
+  if (fields.length === 0) return null;
+
+  values.push(id);
+
+  const [result] = await db.execute(
+    `UPDATE cameras SET ${fields.join(', ')} WHERE id = ?`,
+    values
+  );
+
+  if (result.affectedRows === 0) return null;
+
+  const [updatedRows] = await db.execute(`SELECT * FROM cameras WHERE id = ?`, [id]);
+  return updatedRows[0];
+};
+
+export const getCameraStatistics = async () => {
+  const [[total]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras`);
+  const [[online]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'online'`);
+  const [[offline]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'offline'`);
+  const [[activeAlerts]] = await db.execute(`SELECT COUNT(*) AS count FROM alerts WHERE resolved = FALSE`);
+
+  return {
+    total: total.count,
+    online: online.count,
+    offline: offline.count,
+    activeAlerts: activeAlerts.count
+  };
 };
 
 export const startCameraMonitoring = (io) => {
   ioInstance = io;
 
   console.log('🔍 Starting camera monitoring service...');
-  console.log('📬 Notification system initialized');
-
   setInterval(async () => {
-    if (cameras.length === 0) return;
-
-    console.log(`📡 Checking ${cameras.length} cameras...`);
+    const [cameras] = await db.execute(`SELECT * FROM cameras`);
 
     for (const camera of cameras) {
       const previousStatus = camera.status;
       const analysis = await analyzeCamera(camera);
 
-      camera.status = analysis.status;
-      camera.lastChecked = new Date().toISOString();
+      await updateCameraStatus(camera.id, analysis.status);
 
-      if (analysis.issue === 'offline' && previousStatus === 'online') {
-        const alert = await generateAlert(camera, analysis.issue, analysis.details);
-        if (alert) {
-          console.log(`🚨 New alert: ${camera.name} went offline`);
-          io.emit('newAlert', alert);
-        }
+      if (analysis.status === 'offline' && previousStatus === 'online') {
+        const alert = await generateAlert(camera, 'offline', analysis.details);
+        if (alert && ioInstance) ioInstance.emit('newAlert', alert);
       }
 
       if (analysis.status === 'online' && previousStatus === 'offline') {
-        const offlineAlerts = alerts.filter(a =>
-          a.cameraId === camera.id &&
-          a.type === 'offline' &&
-          !a.resolved
+        await db.execute(
+          `UPDATE alerts SET resolved = TRUE, resolved_at = ? WHERE camera_id = ? AND type = 'offline' AND resolved = FALSE`,
+          [new Date(), camera.id]
         );
-
-        offlineAlerts.forEach(alert => {
-          alert.resolved = true;
-          alert.resolvedAt = new Date().toISOString();
-          console.log(`✅ Auto-resolved offline alert for ${camera.name}`);
-        });
 
         try {
           await sendNotifications(
@@ -148,96 +165,57 @@ export const startCameraMonitoring = (io) => {
       }
     }
 
-    updateCameraStats();
-    io.emit('cameraStatusUpdate', { cameras, stats: cameraStats });
-  }, 3000); // Update every 3 seconds
+    const stats = await getCameraStatistics();
+    if (ioInstance) ioInstance.emit('cameraStatusUpdate', { stats });
+  }, 3000);
 };
-
-export const getCameras = () => cameras;
 
 export const addNewCamera = async (name, ipAddress) => {
-  if (cameras.length >= 4) {
-    throw new Error('Maximum 4 cameras allowed');
-  }
+  const [existing] = await db.execute(`SELECT * FROM cameras WHERE ip_address = ?`, [ipAddress]);
+  if (existing.length > 0) throw new Error('Camera with this IP already exists');
 
-  const existingCamera = cameras.find(c => c.ipAddress === ipAddress);
-  if (existingCamera) {
-    throw new Error('A camera with this IP address already exists');
-  }
+  const id = uuidv4();
+  const stream_url = `${ipAddress}/video`;
+  const added_at = new Date();
 
-  const camera = {
-    id: `cam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name,
-    ipAddress,
-    streamUrl: `${ipAddress}/video`,
-    status: 'offline',
-    addedAt: new Date().toISOString(),
-    lastChecked: null
-  };
+  await db.execute(
+    `INSERT INTO cameras (id, name, ip_address, stream_url, added_at, status) VALUES (?, ?, ?, ?, ?, 'offline')`,
+    [id, name, ipAddress, stream_url, added_at]
+  );
 
-  cameras.push(camera);
-  updateCameraStats();
   console.log(`📷 Added new camera: ${name} (${ipAddress})`);
-
-  // ✅ Immediately check status after adding
-  const analysis = await analyzeCamera(camera);
-  camera.status = analysis.status;
-  camera.lastChecked = new Date().toISOString();
-
-  if (analysis.status === 'offline') {
-    const alert = await generateAlert(camera, 'offline', analysis.details);
-    if (alert && ioInstance) {
-      console.log(`🚨 New offline alert (on add): ${camera.name}`);
-      ioInstance.emit('newAlert', alert);
-    }
-  }
-
-  return camera;
+  return { id, name, ip_address: ipAddress, stream_url };
 };
 
-export const updateCameraData = (id, updateData) => {
-  const cameraIndex = cameras.findIndex(c => c.id === id);
-  if (cameraIndex === -1) return null;
-
-  cameras[cameraIndex] = { ...cameras[cameraIndex], ...updateData };
-  updateCameraStats();
-  return cameras[cameraIndex];
+export const getCameras = async () => {
+  const [rows] = await db.execute(`SELECT * FROM cameras`);
+  return rows;
 };
 
-export const removeCamera = (id) => {
-  const initialLength = cameras.length;
-  const cameraToRemove = cameras.find(c => c.id === id);
-
-  cameras = cameras.filter(c => c.id !== id);
-  alerts = alerts.filter(a => a.cameraId !== id);
-
-  if (cameras.length < initialLength) {
-    updateCameraStats();
-    console.log(`🗑️ Removed camera: ${cameraToRemove?.name || id}`);
-    return true;
-  }
-  return false;
+export const removeCamera = async (id) => {
+  const [result] = await db.execute(`DELETE FROM cameras WHERE id = ?`, [id]);
+  return result.affectedRows > 0;
 };
 
-export const getCameraStatistics = () => cameraStats;
+export const getActiveAlerts = async () => {
+  const [rows] = await db.execute(`SELECT * FROM alerts WHERE resolved = FALSE`);
+  return rows;
+};
 
-export const resolveAlert = (alertId, remark = null) => {
-  const alert = alerts.find(a => a.id === alertId);
-  if (!alert) return false;
+export const resolveAlert = async (alertId, remark = null) => {
+  const resolved_at = new Date();
+  const [result] = await db.execute(
+    `UPDATE alerts SET resolved = TRUE, resolved_at = ?, remark = ? WHERE id = ?`,
+    [resolved_at, remark, alertId]
+  );
 
-  alert.resolved = true;
-  alert.resolvedAt = new Date().toISOString();
-  alert.remark = remark;
-
-  updateCameraStats();
-  console.log(`✅ Resolved alert: ${alert.message}, Remark: ${remark || 'None'}`);
-
-  if (ioInstance) {
+  if (result.affectedRows > 0 && ioInstance) {
+    const [[alert]] = await db.execute(`SELECT * FROM alerts WHERE id = ?`, [alertId]);
     ioInstance.emit('resolvedAlert', alert);
-    ioInstance.emit('cameraStatusUpdate', { cameras, stats: cameraStats });
+
+    const stats = await getCameraStatistics();
+    ioInstance.emit('cameraStatusUpdate', { stats });
   }
 
-  return true;
+  return result.affectedRows > 0;
 };
-
-export const getActiveAlerts = () => alerts.filter(a => !a.resolved);

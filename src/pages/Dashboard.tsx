@@ -97,10 +97,9 @@ const Dashboard = () => {
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Camera Dashboard</h1>
           <p className="text-gray-400">
-            Manage and monitor up to 4 IP cameras • {cameras.length}/4 cameras configured
+            Manage and monitor up to 4 IP cameras • {(cameras || []).length}/4 cameras configured
           </p>
         </div>
-        
         {cameras.length < 4 && (
           <button
             onClick={() => setShowAddModal(true)}
