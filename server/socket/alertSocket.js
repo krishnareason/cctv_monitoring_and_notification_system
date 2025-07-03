@@ -1,3 +1,4 @@
+// alertSocket.js
 export const initializeSocket = (io) => {
   io.on('connection', (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);

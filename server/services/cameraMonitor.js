@@ -1,3 +1,4 @@
+// cameraMonitor.js
 import { sendNotifications } from './notificationService.js';
 import db from '../db.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -54,12 +55,11 @@ const generateAlert = async (camera, issue, details) => {
 
   if (existing.length > 0) return null;
 
-  const alertId = uuidv4();
   const timestamp = new Date();
 
   await db.execute(
-    `INSERT INTO alerts (id, camera_id, type, message, timestamp, resolved) VALUES (?, ?, ?, ?, ?, FALSE)`,
-    [alertId, camera.id, issue, details, timestamp]
+    `INSERT INTO alerts (camera_id, type, message, timestamp, resolved) VALUES (?, ?, ?, ?, FALSE)`,
+    [camera.id, issue, details, timestamp]
   );
 
   if (issue === 'offline') {
@@ -72,7 +72,6 @@ const generateAlert = async (camera, issue, details) => {
   }
 
   return {
-    id: alertId,
     cameraId: camera.id,
     type: issue,
     message: details,
@@ -87,45 +86,6 @@ const updateCameraStatus = async (id, status) => {
     new Date(),
     id
   ]);
-};
-
-// ✅ ADDED THIS FUNCTION TO FIX THE ERROR
-export const updateCameraData = async (id, updateData) => {
-  const fields = [];
-  const values = [];
-
-  for (const [key, value] of Object.entries(updateData)) {
-    fields.push(`${key} = ?`);
-    values.push(value);
-  }
-
-  if (fields.length === 0) return null;
-
-  values.push(id);
-
-  const [result] = await db.execute(
-    `UPDATE cameras SET ${fields.join(', ')} WHERE id = ?`,
-    values
-  );
-
-  if (result.affectedRows === 0) return null;
-
-  const [updatedRows] = await db.execute(`SELECT * FROM cameras WHERE id = ?`, [id]);
-  return updatedRows[0];
-};
-
-export const getCameraStatistics = async () => {
-  const [[total]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras`);
-  const [[online]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'online'`);
-  const [[offline]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'offline'`);
-  const [[activeAlerts]] = await db.execute(`SELECT COUNT(*) AS count FROM alerts WHERE resolved = FALSE`);
-
-  return {
-    total: total.count,
-    online: online.count,
-    offline: offline.count,
-    activeAlerts: activeAlerts.count
-  };
 };
 
 export const startCameraMonitoring = (io) => {
@@ -165,26 +125,47 @@ export const startCameraMonitoring = (io) => {
       }
     }
 
+    // ✅ Emit updated camera list to clients
+    const [updatedCameras] = await db.execute(`SELECT * FROM cameras`);
     const stats = await getCameraStatistics();
-    if (ioInstance) ioInstance.emit('cameraStatusUpdate', { stats });
+    if (ioInstance) {
+      ioInstance.emit('cameraStatusUpdate', {
+        stats,
+        cameras: updatedCameras,
+      });
+    }
   }, 3000);
+};
+
+export const getCameraStatistics = async () => {
+  const [[total]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras`);
+  const [[online]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'online'`);
+  const [[offline]] = await db.execute(`SELECT COUNT(*) AS count FROM cameras WHERE status = 'offline'`);
+  const [[activeAlerts]] = await db.execute(`SELECT COUNT(*) AS count FROM alerts WHERE resolved = FALSE`);
+
+  return {
+    total: total.count,
+    online: online.count,
+    offline: offline.count,
+    activeAlerts: activeAlerts.count
+  };
 };
 
 export const addNewCamera = async (name, ipAddress) => {
   const [existing] = await db.execute(`SELECT * FROM cameras WHERE ip_address = ?`, [ipAddress]);
   if (existing.length > 0) throw new Error('Camera with this IP already exists');
 
-  const id = uuidv4();
   const stream_url = `${ipAddress}/video`;
   const added_at = new Date();
 
-  await db.execute(
-    `INSERT INTO cameras (id, name, ip_address, stream_url, added_at, status) VALUES (?, ?, ?, ?, ?, 'offline')`,
-    [id, name, ipAddress, stream_url, added_at]
+  const [result] = await db.execute(
+    `INSERT INTO cameras (name, ip_address, stream_url, added_at, status) VALUES (?, ?, ?, ?, 'offline')`,
+    [name, ipAddress, stream_url, added_at]
   );
 
+  const insertedId = result.insertId;
   console.log(`📷 Added new camera: ${name} (${ipAddress})`);
-  return { id, name, ip_address: ipAddress, stream_url };
+  return { id: insertedId, name, ip_address: ipAddress, stream_url };
 };
 
 export const getCameras = async () => {
@@ -204,18 +185,27 @@ export const getActiveAlerts = async () => {
 
 export const resolveAlert = async (alertId, remark = null) => {
   const resolved_at = new Date();
+  const parsedId = parseInt(alertId); // ✅ Ensure it's an integer
+
+  if (isNaN(parsedId)) {
+    console.error('❌ Invalid alertId provided to resolveAlert:', alertId);
+    return false;
+  }
+
   const [result] = await db.execute(
     `UPDATE alerts SET resolved = TRUE, resolved_at = ?, remark = ? WHERE id = ?`,
-    [resolved_at, remark, alertId]
+    [resolved_at, remark, parsedId]
   );
 
   if (result.affectedRows > 0 && ioInstance) {
-    const [[alert]] = await db.execute(`SELECT * FROM alerts WHERE id = ?`, [alertId]);
+    const [[alert]] = await db.execute(`SELECT * FROM alerts WHERE id = ?`, [parsedId]);
     ioInstance.emit('resolvedAlert', alert);
 
     const stats = await getCameraStatistics();
-    ioInstance.emit('cameraStatusUpdate', { stats });
+    const [cameras] = await db.execute(`SELECT * FROM cameras`);
+    ioInstance.emit('cameraStatusUpdate', { stats, cameras });
   }
 
   return result.affectedRows > 0;
 };
+

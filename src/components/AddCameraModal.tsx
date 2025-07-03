@@ -1,3 +1,4 @@
+// AddCameraModel.tsx
 import React, { useState } from 'react';
 import { X, Camera, Wifi } from 'lucide-react';
 
@@ -27,8 +28,7 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({ onClose, onAddCamera })
       return;
     }
 
-    // Basic IP validation
-    const ipRegex = /^http:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:8080$/;
+    const ipRegex = /^http:\/\/(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}:8080$/;
     if (!ipRegex.test(formData.ipAddress)) {
       setError('Please enter a valid IP address format: http://192.168.x.x:8080');
       return;
@@ -47,7 +47,6 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({ onClose, onAddCamera })
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-800 rounded-lg border border-gray-700 w-full max-w-md mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center space-x-3">
             <Camera className="w-6 h-6 text-blue-400" />
@@ -61,7 +60,6 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({ onClose, onAddCamera })
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-4">
             <div>
@@ -101,7 +99,6 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({ onClose, onAddCamera })
             </div>
           )}
 
-          {/* Setup Instructions */}
           <div className="mt-6 p-4 bg-blue-900/20 border border-blue-800 rounded-lg">
             <div className="flex items-start space-x-3">
               <Wifi className="w-5 h-5 text-blue-400 mt-0.5" />
@@ -117,7 +114,6 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({ onClose, onAddCamera })
             </div>
           </div>
 
-          {/* Buttons */}
           <div className="flex space-x-3 mt-6">
             <button
               type="button"

@@ -1,3 +1,4 @@
+// notificationService.js
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 import dotenv from 'dotenv';

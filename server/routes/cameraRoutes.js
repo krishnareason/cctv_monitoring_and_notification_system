@@ -1,3 +1,4 @@
+// cameraRoutes.js
 import express from 'express';
 import * as cameraController from '../controllers/cameraController.js';
 

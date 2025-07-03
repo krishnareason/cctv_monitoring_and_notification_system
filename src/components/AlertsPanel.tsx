@@ -1,3 +1,4 @@
+// AlertsPanel.tsx
 import React, { useState } from 'react';
 import { AlertTriangle, Wifi, Clock } from 'lucide-react';
 import { Alert } from '../types'; // ✅ use shared type
