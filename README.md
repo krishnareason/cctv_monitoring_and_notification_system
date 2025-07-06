@@ -1,132 +1,68 @@
-📹 Smart CCTV Camera Monitoring System
+# 📹 Smart CCTV Camera Monitoring System
 
+A real-time camera monitoring and alerting solution designed for high-security areas like power plants. This dashboard ensures all CCTV feeds are constantly monitored, with automatic alerts via **SMS and email** when any camera goes offline. The system supports **real-time updates**, **manual alert resolution**, and **MySQL-based logging**.
 
-A powerful real-time CCTV monitoring dashboard designed for critical infrastructure like power plants, where dozens of cameras must be constantly supervised. This project provides a centralized dashboard, real-time status updates, and automated email/SMS alerts when any camera goes offline.
+---
 
+## 🚨 Problem Statement
 
-📈 Problem Statement
+In large-scale environments like **power plants**, it's difficult for operators to notice when a camera goes offline. This downtime could lead to blind spots and safety threats. Manual monitoring is inefficient and error-prone.
 
-In environments such as power plants, cameras are deployed to monitor sensitive zones. However, when one goes offline, it's hard for the monitoring team to immediately detect it. Delayed response to such outages can be dangerous.
+✅ **This system solves that** by automatically detecting offline cameras and notifying the concerned team instantly.
 
+---
 
-✅ Key Features
-Feature                                  Description
+## 🎯 Key Features
 
-📅 Dashboard Overview                    View total, online, offline cameras & active alerts
+| Feature                      | Description                                                   |
+|-----------------------------|---------------------------------------------------------------|
+| 🧭 Dashboard Overview       | Shows total, online, offline cameras & active alerts         |
+| 📺 Live Camera Feeds        | Live view of up to 4 IP cameras in real-time                  |
+| 📶 Ping-Based Health Check  | Checks camera availability every 3 seconds                   |
+| 📬 Email Alerts             | Sends email notifications when cameras go offline            |
+| 📱 SMS Alerts               | Sends SMS notifications via Twilio                           |
+| 📝 Alert Resolution         | Add manual remarks to resolve offline alerts                 |
+| 💾 MySQL Database Logging   | Saves camera info, alert logs, remarks                        |
+| 🌐 Real-Time Updates        | Uses WebSocket (Socket.IO) for frontend sync                 |
 
-📻 Live Camera Feed                      Displays real-time IP Webcam streams (up to 4 cameras)
+---
 
-🚨 Offline Alert Detection               Monitors each camera's health every 3 seconds
+## 📦 Technologies Used
 
-📢 Email + SMS Notifications             Sends alerts when camera goes offline (via Gmail + Twilio)
+### 👨‍💻 Languages & Libraries
+- **JavaScript**, **TypeScript**
+- **Node.js**, **Express.js**
+- **React.js** (Vite + Hooks)
+- **Tailwind CSS**
 
-🖋️ Alert Resolution                      Resolve alerts with manual remark input
+### 🔗 Backend & Realtime
+- **Socket.IO** – real-time camera status updates
+- **Nodemailer** – Email notifications via Gmail
+- **Twilio API** – SMS notifications
+- **MySQL** – Camera and alert storage
+- **dotenv** – Secure env config
 
-📊 Database Logging                      Stores camera info, status, alerts, and remarks in MySQL
+### 📱 Camera Feed
+- **IP Webcam Android App** – Used for live feed streaming via IP address
 
-🌐 WebSocket Real-Time Sync              Uses Socket.IO for instant status updates on frontend
-
-
-🛋‍♂️ User Flow
-
-1) User adds camera (via IP address and custom name).
-2) System pings cameras every 3 seconds.
-3) If a camera is offline:
-   > Marks status as offline
-   > Logs alert in MySQL
-   > Triggers Email + SMS notification
-   > Displays alert on dashboard
-4) Monitoring user can resolve alert by entering a remark.
-
-
-🚀Tech Stack
-
-Layer                      Technology
-
-Frontend                   React + TypeScript + TailwindCSS
-
-Backend                    Node.js + Express
-
-Realtime                   Socket.IO
-
-Database                   MySQL
-
-Notifications              Nodemailer (Gmail), Twilio (SMS)
-
-
-⚙️ Installation
-
-1. Clone & Install
-
-git clone https://github.com/your-repo/cctv-monitor
-
-cd backend
+### Start Frontend
 
 npm install
-
-3. Setup .env
-
-PORT=3001
-
-DB_HOST=localhost
-
-DB_USER=root
-
-DB_PASS=your_password
-
-DB_NAME=cctv_monitor
-
-EMAIL_USER=your_email@gmail.com
-
-EMAIL_PASS=your_app_password
-
-EMAIL_TO=recipient@example.com
-
-TWILIO_ACCOUNT_SID=your_sid
-
-TWILIO_AUTH_TOKEN=your_token
-
-TWILIO_PHONE_FROM=+1XXXXXXXXXX
-
-TWILIO_PHONE_TO=+91XXXXXXXXXX
-
-NOTIFICATIONS_ENABLED=true
-
-EMAIL_NOTIFICATIONS=true
-
-SMS_NOTIFICATIONS=true
-
-3. Start Backend
-
-node server.js
-
-5. Start Frontend
-
-npm install
-
 npm run dev
-
 Visit: http://localhost:5173
 
 
-📻 Camera Setup (Using IP Webcam App)
+### 📻 Camera Setup (Using IP Webcam App)
 
 1) Install IP Webcam on Android
-
 2) Start server in app
-   
 3) Use displayed IP like http://xxx.xxx.1.100:8080
-   
 4) Input full IP in Add Camera Modal on dashboard
 
-
-🚀 Future Scope
+### 🚀 Future Scope
 
 🔐 Authentication for dashboard access
-
 📊 Alert analytics & visualization
-
 🧠 Blur/Smoke/Fire detection using OpenCV + AI
-
 ☁️ Cloud deployment on Railway / Render
 
